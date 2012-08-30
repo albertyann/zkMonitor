@@ -18,13 +18,13 @@ __nodeconfig__ = 'nodes.ini'
 __log__ = 'watch.log'
 Zookeeper = None
 Config = {}
-Play = {}
+NodeConf = {}
 
 
-def run(i, conf=None):
+def run():
     global Zookeeper, Config
     
-    if zookeeper.OK !=  zookeeper.aget(Zookeeper, conf['node'], aget):
+    if zookeeper.OK !=  zookeeper.aget(Zookeeper, NodeConf['node'], aget):
         logging.info(node + 'node not found.')
 
 def connection_watcher(handle,type,state, path):
@@ -46,34 +46,62 @@ def proessOut(obj):
         raise IOException('nodes.ini error:'+obj+'. missing \'[\' or \']\' ')
 
     return obj
+
+
+def read_conf_name(conf):
+    if conf[0] == '\n':
+        conf = conf[1:]
         
+    i = conf.index('\n')
+    h = conf[:i]
+    m = conf[i+1:]
+    return (h,m)
+
 def handle(data, path):
     m = os.path.basename(path)
-    conf = Play[m]
-    #a.say()
+
+    
 
     str = ngzip.ungzip(base64.decodestring(data))
-    
-    
-    tmp_path = proessOut(conf['out'])
 
+    sep = "&&&&&&"
     
+    books = str.split(sep)
+    length = len(books)
     
+    version = books[1].split('\n')[2]
+    tmp_path = proessOut(NodeConf['out'])
+    
+    for i in range(2,length):
+        (h, m) = read_conf_name(books[i])
+        
+        if type(tmp_path) == list:
+            for path in tmp_path:
+                save(m, path+'/'+h, version)
+        else:
+            save(m, tmp_path+'/'+h, version)
+
     if type(tmp_path) == list:
         for path in tmp_path:
-            save(str, path)
+            saveversion(path+'/version', version)
+            bakfile(path) 
     else:
-        save(str, tmp_path)
+        saveversion(tmp_path+'/version', version)
+        bakfile(path) 
 
-def save(data, path):
+
+        
+def saveversion(path, version):
+    f = open(path, 'w')
+    f.write(version)
+    f.flush()
+    f.close()
+    
+def save(data, path, version):
     dir_path = os.path.dirname(path)
     if not os.path.exists(dir_path):
         os.mkdir(dir_path, 0777)
-
-    bakfile(path) #
-    
-    print path
-    
+ 
     f = open(path, 'w')
     f.write(data)
     f.flush()
@@ -87,13 +115,12 @@ def bakfile(path):
     if not os.path.exists(path):
         return False
     
-    dir_path = os.path.dirname(path)
-    basename = os.path.basename(path)
     version = 0
-    if os.path.exists(dir_path+'/version'):
-        version = open(dir_path+'/version').readline()
+    if os.path.exists(path+'/version'):
+        version = open(path+'/version').readline()
 
-    bak_path = os.path.dirname(dir_path)+'/bak'
+    bak_path = os.path.dirname(path)+'/bak'
+
     bak_ext = '.tar.gz'
     
     if not os.path.exists(bak_path):
@@ -101,7 +128,7 @@ def bakfile(path):
         
     t = time.strftime("%Y%m%d%H%M%S", time.localtime())
 
-    bname = '-'.join([str(version), t])
+    bname = '-'.join([t, str(version)])
     
     tar_path = bak_path+'/'+bname + bak_ext
 
@@ -109,12 +136,11 @@ def bakfile(path):
     maxnum = int(Config['baknum'])
     bakcount = len(baklist)
     sub = bakcount - maxnum
-    print sub
+
     if sub >= 0:
         baklist.sort()
         while(sub >= 0):
             _del = baklist[sub]
-            print bak_path+'/'+_del
             os.remove(bak_path+'/'+_del)
             sub -= 1
             
@@ -123,12 +149,12 @@ def bakfile(path):
     if os.path.exists(tar_path):
         return True
     
-    os.system('tar czvf '+tar_path+' '+dir_path+'/* > /dev/null 2>&1')
+    os.system('tar czvf '+tar_path+' '+path+'/* > /dev/null 2>&1')
 
-    logging.info('bak '+basename)
+    logging.info('bak '+bname)
 
 def main():
-    global Zookeeper, Config
+    global Zookeeper, Config, NodeConf
     
     logging.basicConfig(filename=__log__,level=logging.DEBUG,
                         format = "[%(asctime)s] %(levelname)-8s %(message)s")
@@ -138,10 +164,12 @@ def main():
         sysconf = ConfigParser.ConfigParser()
         sysconf.read(__sysconfig__)
 
-        Config['host'] = sysconf.get('system', 'host')
-        Config['port'] = sysconf.get('system', 'port')
-        Config['zklog'] = sysconf.get('system', 'zklog')
-        Config['baknum'] = sysconf.get('system', 'baknum')
+        Config = dict(sysconf.items('system'))
+
+        zk_log_path = os.path.dirname(Config['zklog'])
+
+        if not os.path.exists(zk_log_path):
+            os.mkdir(zk_log_path)
 
         zklog = open(Config['zklog'],"w")
         zookeeper.set_log_stream(zklog)
@@ -155,6 +183,7 @@ def main():
     if(os.path.exists(__nodeconfig__)):
         nodeconf = ConfigParser.ConfigParser()
         nodeconf.read(__nodeconfig__)
+        NodeConf = dict(nodeconf.items('config'))
     else:
         logging.info('not found '+__sysconfig__)
         sys.exit()
@@ -162,19 +191,10 @@ def main():
     logging.info('zookeeper warcher start...')
 
 
-    i = 1;
-    for n in nodeconf.sections():
-        i += 1
-        conf = dict(nodeconf.items(n))
+    t = threading.Thread(target=run, args=[])
+    t.start()
+    t.join()
 
-        m = os.path.basename(conf['node'])
-        Play[m] = conf
-
-
-        
-        t = threading.Thread(target=run, args=(i, conf))
-        t.start()
-        t.join()
 
 
     while True:
