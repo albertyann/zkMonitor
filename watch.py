@@ -100,7 +100,7 @@ def saveversion(path, version):
 def save(data, path, version):
     dir_path = os.path.dirname(path)
     if not os.path.exists(dir_path):
-        os.mkdir(dir_path, 0777)
+        os.makedirs(dir_path, 0777)
  
     f = open(path, 'w')
     f.write(data)
@@ -124,7 +124,7 @@ def bakfile(path):
     bak_ext = '.tar.gz'
     
     if not os.path.exists(bak_path):
-        os.mkdir(bak_path, 0777)
+        os.makedirs(bak_path, 0777)
         
     t = time.strftime("%Y%m%d%H%M%S", time.localtime())
 
@@ -169,7 +169,7 @@ def main():
         zk_log_path = os.path.dirname(Config['zklog'])
 
         if not os.path.exists(zk_log_path):
-            os.mkdir(zk_log_path)
+            os.makedirs(zk_log_path)
 
         zklog = open(Config['zklog'],"w")
         zookeeper.set_log_stream(zklog)
