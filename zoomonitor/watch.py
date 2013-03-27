@@ -28,7 +28,8 @@ def run():
         logging.info(node + 'node not found.')
 
 def connection_watcher(handle,type,state, path):
-    #print type
+    aget(handle, type,state,path)
+    #print 'over....'
     pass
 
 
@@ -102,7 +103,7 @@ def save(data, path, version):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path, 0777)
  
-    f = open(path, 'w')
+    f = open(path, 'a')
     f.write(data)
     f.flush()
     f.close()
@@ -148,9 +149,10 @@ def bakfile(path):
     
     if os.path.exists(tar_path):
         return True
-    
-    os.system('tar czvf '+tar_path+' '+path+'/* > /dev/null 2>&1')
 
+    tar_cmd = 'tar czf '+tar_path+' '+path+'* --exclude bak'
+    #os.system('tar czvf '+tar_path+' '+path+'/* > /dev/null 2>&1')
+    os.system(tar_cmd)
     logging.info('bak '+bname)
 
 def main():
